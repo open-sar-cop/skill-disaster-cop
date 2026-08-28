@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -32,6 +32,13 @@
   .pill.minor { background: rgba(107,114,128,.4); color: #e5e7eb; border: 1px solid #9ca3af; }
   .h-meta { margin-top: 8px; font-size: 12.5px; color: #d1d5db; display: flex; gap: 22px; flex-wrap: wrap; }
   .h-meta b { color: #fff; font-weight: 600; }
+  .lang-btn {
+    position: absolute; top: 18px; right: 24px; z-index: 1200;
+    font-size: 12.5px; font-weight: 700; letter-spacing: .5px; cursor: pointer;
+    color: #fde68a; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.25);
+    border-radius: 999px; padding: 4px 14px; user-select: none;
+  }
+  .lang-btn:hover { background: rgba(255,255,255,.18); }
   .wrap { max-width: 1440px; margin: 0 auto; padding: 18px 22px 40px; }
   .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px; }
   .kpi { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; border-top: 3px solid var(--accent); }
@@ -79,8 +86,9 @@
 </head>
 <body>
 <header>
+  <span class="lang-btn" id="lang-btn" onclick="toggleLang()" title="Switch language / 切换语言"></span>
   <div class="h-top">
-    <span class="h-brand">OPEN SAR-COP · 灾害通用态势平台</span>
+    <span class="h-brand" id="brand"></span>
     <h1 id="ev-title"></h1>
     <span class="h-status" id="ev-status"></span>
   </div>
@@ -92,102 +100,193 @@
 
   <div class="main">
     <div class="card">
-      <h2>态势地图 <span style="font-weight:400;color:#6b7280;font-size:12px;">（点位为近似定位，点击查看详情；点击图例可切换图层）</span></h2>
+      <h2><span id="t-map"></span> <span style="font-weight:400;color:#6b7280;font-size:12px;" id="t-map-hint"></span></h2>
       <div id="map"></div>
     </div>
 
     <div class="side">
       <div class="card">
-        <h2>事件概况</h2>
+        <h2 id="t-summary"></h2>
         <div class="summary-body" id="ev-summary"></div>
       </div>
 
       <div class="card" id="chart-card">
-        <h2>伤亡数字变化</h2>
+        <h2 id="t-chart"></h2>
         <div class="chart-body" id="chart"></div>
-        <div class="chart-note">数据点仅收录有明确时间戳与口径的公开通报，缺失点不插值。</div>
+        <div class="chart-note" id="t-chart-note"></div>
       </div>
 
       <div class="card">
-        <h2>时间线</h2>
+        <h2 id="t-timeline"></h2>
         <div class="tl" id="timeline"></div>
       </div>
 
       <div class="card">
-        <h2>响应力量</h2>
+        <h2 id="t-resources"></h2>
         <div class="res-list" id="resources"></div>
       </div>
 
       <div class="card">
-        <h2>数据来源</h2>
+        <h2 id="t-sources"></h2>
         <ul class="src-list" id="sources"></ul>
       </div>
     </div>
   </div>
 </div>
 
-<footer>
-  <b>免责声明</b>：本 COP 由 <span id="gen-time"></span> 自动生成，数据整理自公开报道，仅供态势参考，不作为救援决策的唯一依据；不含任何个人身份信息（PII）。
-</footer>
+<footer id="footer"></footer>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 const COP = __COP_DATA__;
 
-const CATS = {
-  incident:  { label: "灾害发生点",  color: "#dc2626" },
-  damage:    { label: "设施损毁",    color: "#ea580c" },
-  community: { label: "受灾村镇",    color: "#d97706" },
-  command:   { label: "指挥/协调",   color: "#4338ca" },
-  resource:  { label: "救援力量",    color: "#0d9488" },
-  risk:      { label: "风险区",      color: "#7c3aed" }
+/* ================= i18n ================= */
+const I18N = {
+  en: {
+    brand: "OPEN SAR-COP · DISASTER COMMON OPERATING PICTURE",
+    map: "Situation Map",
+    mapHint: "(approximate locations · click a marker for details · click the legend to toggle layers)",
+    summary: "Incident Overview",
+    chart: "Casualty Trend",
+    chartNote: "Only figures with an explicit timestamp and attribution are plotted; missing points are not interpolated.",
+    timeline: "Timeline",
+    resources: "Response Forces",
+    sources: "Data Sources",
+    legend: "Layers",
+    corridor: "Risk corridor",
+    status: { active: "Active response", monitoring: "Monitoring", closed: "Closed" },
+    sev: { extreme: "Extreme", severe: "Severe", moderate: "Moderate", minor: "Minor" },
+    sevLabel: "Severity",
+    meta: { type: "Type", onset: "Onset", region: "Region", updated: "Data as of", slug: "Event ID" },
+    dead: "Dead", missing: "Missing",
+    tasks: "Tasks", strength: "Strength", base: "Base",
+    asOf: "as of",
+    approxNote: "approximate location",
+    noneRecorded: "No records yet.",
+    disclaimer: "Disclaimer: this COP was generated automatically on",
+    disclaimerTail: "from publicly reported information. It is for situational awareness only and must not be the sole basis for any rescue decision. It contains no personally identifiable information (PII).",
+    langBtn: "中文",
+    htmlLang: "en"
+  },
+  zh: {
+    brand: "OPEN SAR-COP · 灾害通用态势平台",
+    map: "态势地图",
+    mapHint: "（点位为近似定位 · 点击查看详情 · 点击图例切换图层）",
+    summary: "事件概况",
+    chart: "伤亡数字变化",
+    chartNote: "数据点仅收录有明确时间戳与口径的公开通报，缺失点不插值。",
+    timeline: "时间线",
+    resources: "响应力量",
+    sources: "数据来源",
+    legend: "图层",
+    corridor: "风险廊道",
+    status: { active: "响应进行中", monitoring: "持续监测", closed: "已结束" },
+    sev: { extreme: "极端", severe: "严重", moderate: "中等", minor: "较轻" },
+    sevLabel: "灾害等级",
+    meta: { type: "类型", onset: "发生时间", region: "区域", updated: "数据更新", slug: "事件编号" },
+    dead: "遇难", missing: "失联",
+    tasks: "任务", strength: "规模", base: "基地",
+    asOf: "信息截至",
+    approxNote: "坐标为近似定位",
+    noneRecorded: "暂无记录",
+    disclaimer: "免责声明：本 COP 由",
+    disclaimerTail: "自动生成，数据整理自公开报道，仅供态势参考，不作为救援决策的唯一依据；不含任何个人身份信息（PII）。",
+    langBtn: "EN",
+    htmlLang: "zh-CN"
+  }
 };
-const STATUS = { active: "响应进行中", monitoring: "持续监测", closed: "已结束" };
-const SEV = { extreme: "极端", severe: "严重", moderate: "中等", minor: "较轻" };
+const CATS = {
+  incident:  { color: "#dc2626" },
+  damage:    { color: "#ea580c" },
+  community: { color: "#d97706" },
+  command:   { color: "#4338ca" },
+  resource:  { color: "#0d9488" },
+  risk:      { color: "#7c3aed" }
+};
+const CAT_I18N = {
+  en: { incident: "Incident site", damage: "Damaged infrastructure", community: "Affected community", command: "Command / coordination", resource: "Response asset", risk: "Risk zone" },
+  zh: { incident: "灾害发生点", damage: "设施损毁", community: "受灾村镇", command: "指挥/协调", resource: "救援力量", risk: "风险区" }
+};
 
+let LANG = localStorage.getItem("cop-lang") || "en";
+if (LANG !== "en" && LANG !== "zh") LANG = "en";
+function T() { return I18N[LANG]; }
+/* Pick obj[field] in current language; fall back to primary field, then *_zh. */
+function L(obj, field) {
+  if (!obj) return "";
+  if (LANG === "zh") {
+    if (obj[field + "_zh"]) return obj[field + "_zh"];
+  }
+  if (obj[field]) return obj[field];
+  if (obj[field + "_zh"]) return obj[field + "_zh"]; /* data only has zh */
+  return "";
+}
 function esc(s) {
   return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
     return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
   });
 }
 
-/* ---------- Header ---------- */
-document.getElementById("ev-title").textContent = COP.title;
-document.getElementById("ev-status").innerHTML =
-  '<span class="pill ' + (COP.status === "monitoring" ? "monitoring" : COP.status === "closed" ? "closed" : "active") + '">' +
-  (STATUS[COP.status] || COP.status) + "</span>" +
-  '<span class="pill ' + (COP.severity || "mod") + '">灾害等级：' + (SEV[COP.severity] || COP.severity) + "</span>";
-document.getElementById("ev-meta").innerHTML =
-  "<span>类型 <b>" + esc(COP.event_type) + "</b></span>" +
-  "<span>发生时间 <b>" + esc(COP.onset) + "</b></span>" +
-  (COP.region ? "<span>区域 <b>" + esc(COP.region) + "</b></span>" : "") +
-  "<span>数据更新 <b>" + esc(COP.last_updated) + "</b></span>" +
-  "<span>事件编号 <b>" + esc(COP.slug) + "</b></span>";
-document.getElementById("ev-summary").textContent = COP.summary || "";
+/* ================= rendering ================= */
+function renderChrome() {
+  var t = T();
+  document.documentElement.lang = t.htmlLang;
+  document.title = L(COP, "title") + " · COP";
+  document.getElementById("lang-btn").textContent = t.langBtn;
+  document.getElementById("brand").textContent = t.brand;
+  document.getElementById("t-map").textContent = t.map;
+  document.getElementById("t-map-hint").textContent = t.mapHint;
+  document.getElementById("t-summary").textContent = t.summary;
+  document.getElementById("t-chart").textContent = t.chart;
+  document.getElementById("t-chart-note").textContent = t.chartNote;
+  document.getElementById("t-timeline").textContent = t.timeline;
+  document.getElementById("t-resources").textContent = t.resources;
+  document.getElementById("t-sources").textContent = t.sources;
 
-/* ---------- KPIs ---------- */
-document.getElementById("kpis").innerHTML = (COP.kpis || []).map(function (k) {
-  return '<div class="kpi"><div class="v">' + esc(k.value) + (k.unit ? "<small>" + esc(k.unit) + "</small>" : "") +
-    '</div><div class="l">' + esc(k.label) + "</div>" +
-    (k.note ? '<div class="n">' + esc(k.note) + "</div>" : "") + "</div>";
-}).join("");
+  document.getElementById("ev-title").textContent = L(COP, "title");
+  document.getElementById("ev-status").innerHTML =
+    '<span class="pill ' + (COP.status === "monitoring" ? "monitoring" : COP.status === "closed" ? "closed" : "active") + '">' +
+    esc(t.status[COP.status] || COP.status) + "</span>" +
+    '<span class="pill ' + (COP.severity || "mod") + '">' + esc(t.sevLabel) + "：" + esc(t.sev[COP.severity] || COP.severity) + "</span>";
+  document.getElementById("ev-meta").innerHTML =
+    "<span>" + esc(t.meta.type) + " <b>" + esc(L(COP, "event_type")) + "</b></span>" +
+    "<span>" + esc(t.meta.onset) + " <b>" + esc(COP.onset) + "</b></span>" +
+    (COP.region ? "<span>" + esc(t.meta.region) + " <b>" + esc(L(COP, "region")) + "</b></span>" : "") +
+    "<span>" + esc(t.meta.updated) + " <b>" + esc(COP.last_updated) + "</b></span>" +
+    "<span>" + esc(t.meta.slug) + " <b>" + esc(COP.slug) + "</b></span>";
+  document.getElementById("ev-summary").textContent = L(COP, "summary") || "";
+  document.getElementById("footer").innerHTML =
+    LANG === "zh"
+      ? '<b>免责声明</b>：本 COP 由 <span id="gen-time"></span> 自动生成，数据整理自公开报道，仅供态势参考，不作为救援决策的唯一依据；不含任何个人身份信息（PII）。'
+      : '<b>Disclaimer</b>: this COP was generated automatically on <span id="gen-time"></span> from publicly reported information. It is for situational awareness only and must not be the sole basis for any rescue decision. It contains no personally identifiable information (PII).';
+  document.getElementById("gen-time").textContent = new Date().toLocaleString(LANG === "zh" ? "zh-CN" : "en-US");
+}
 
-/* ---------- Chart (hand-rolled SVG) ---------- */
-(function () {
+function renderKpis() {
+  document.getElementById("kpis").innerHTML = (COP.kpis || []).map(function (k) {
+    return '<div class="kpi"><div class="v">' + esc(k.value) + (k.unit ? "<small>" + esc(k.unit) + "</small>" : "") +
+      '</div><div class="l">' + esc(L(k, "label")) + "</div>" +
+      (L(k, "note") ? '<div class="n">' + esc(L(k, "note")) + "</div>" : "") + "</div>";
+  }).join("");
+}
+
+function renderChart() {
+  var t = T();
   var series = (COP.casualty_series || []).filter(function (p) { return p.dead != null || p.missing != null; });
   var card = document.getElementById("chart-card");
+  card.style.display = "";
   if (!series.length) { card.style.display = "none"; return; }
-  var W = 340, H = 180, L = 40, R = 12, T = 14, B = 26;
+  var W = 340, H = 180, Lm = 40, R = 12, Tm = 14, B = 26;
   var max = 0;
   series.forEach(function (p) { max = Math.max(max, p.dead || 0, p.missing || 0); });
   max = Math.ceil(max / 100) * 100 || 10;
-  function x(i) { return L + (series.length === 1 ? 0 : i * (W - L - R) / (series.length - 1)); }
-  function y(v) { return H - B - v * (H - T - B) / max; }
+  function x(i) { return Lm + (series.length === 1 ? 0 : i * (W - Lm - R) / (series.length - 1)); }
+  function y(v) { return H - B - v * (H - Tm - B) / max; }
   var svg = '<svg viewBox="0 0 ' + W + " " + H + '" style="width:100%;height:auto">';
   for (var g = 0; g <= 4; g++) {
     var gv = max * g / 4;
-    svg += '<line x1="' + L + '" y1="' + y(gv) + '" x2="' + (W - R) + '" y2="' + y(gv) + '" stroke="#e5e7eb" stroke-width="1"/>' +
-      '<text x="' + (L - 6) + '" y="' + (y(gv) + 4) + '" font-size="10" fill="#9ca3af" text-anchor="end">' + gv + "</text>";
+    svg += '<line x1="' + Lm + '" y1="' + y(gv) + '" x2="' + (W - R) + '" y2="' + y(gv) + '" stroke="#e5e7eb" stroke-width="1"/>' +
+      '<text x="' + (Lm - 6) + '" y="' + (y(gv) + 4) + '" font-size="10" fill="#9ca3af" text-anchor="end">' + gv + "</text>";
   }
   function line(key, color) {
     var pts = [], dots = "";
@@ -195,117 +294,176 @@ document.getElementById("kpis").innerHTML = (COP.kpis || []).map(function (k) {
       if (p[key] == null) return;
       pts.push(x(i) + "," + y(p[key]));
       dots += '<circle cx="' + x(i) + '" cy="' + y(p[key]) + '" r="3.5" fill="' + color + '">' +
-        "<title>" + esc(p.label) + "：" + p[key] + "人</title></circle>";
+        "<title>" + esc(L(p, "label")) + "：" + p[key] + "</title></circle>";
     });
     if (pts.length < 2) return dots;
     return '<polyline points="' + pts.join(" ") + '" fill="none" stroke="' + color + '" stroke-width="2.2"/>' + dots;
   }
   svg += line("missing", "#d97706") + line("dead", "#dc2626");
   series.forEach(function (p, i) {
-    svg += '<text x="' + x(i) + '" y="' + (H - 8) + '" font-size="10" fill="#6b7280" text-anchor="middle">' + esc(p.label) + "</text>";
+    svg += '<text x="' + x(i) + '" y="' + (H - 8) + '" font-size="10" fill="#6b7280" text-anchor="middle">' + esc(L(p, "label")) + "</text>";
   });
-  svg += '<rect x="' + (W - 118) + '" y="2" width="12" height="3.5" fill="#dc2626"/><text x="' + (W - 100) + '" y="8" font-size="10.5" fill="#374151">遇难</text>' +
-    '<rect x="' + (W - 62) + '" y="2" width="12" height="3.5" fill="#d97706"/><text x="' + (W - 44) + '" y="8" font-size="10.5" fill="#374151">失联</text>';
+  var legW = LANG === "zh" ? [118, 62] : [128, 66];
+  svg += '<rect x="' + (W - legW[0]) + '" y="2" width="12" height="3.5" fill="#dc2626"/><text x="' + (W - legW[0] + 16) + '" y="8" font-size="10.5" fill="#374151">' + esc(t.dead) + "</text>" +
+    '<rect x="' + (W - legW[1]) + '" y="2" width="12" height="3.5" fill="#d97706"/><text x="' + (W - legW[1] + 16) + '" y="8" font-size="10.5" fill="#374151">' + esc(t.missing) + "</text>";
   svg += "</svg>";
   document.getElementById("chart").innerHTML = svg;
-})();
-
-/* ---------- Timeline ---------- */
-document.getElementById("timeline").innerHTML = (COP.updates || []).map(function (u) {
-  return '<div class="tl-item"><span class="tl-time">' + esc(u.time) + "</span>" +
-    (u.tag ? '<span class="tl-tag">' + esc(u.tag) + "</span>" : "") +
-    '<div class="tl-text">' + esc(u.text) + "</div></div>";
-}).join("");
-
-/* ---------- Resources ---------- */
-document.getElementById("resources").innerHTML = (COP.resources || []).map(function (r) {
-  return '<div class="res-item"><span class="res-name">' + esc(r.name) + "</span>" +
-    (r.type ? '<span class="res-type">' + esc(r.type) + "</span>" : "") +
-    "<div class='res-detail'>" +
-    (r.tasks ? "任务：" + esc(r.tasks) + "；" : "") +
-    (r.strength ? "规模：" + esc(r.strength) + "；" : "") +
-    (r.base ? "基地：" + esc(r.base) : "") + "</div></div>";
-}).join("") || "<div style='padding:10px 16px;color:#6b7280'>暂无记录</div>";
-
-/* ---------- Sources ---------- */
-document.getElementById("sources").innerHTML = (COP.sources || []).map(function (s) {
-  var name = s.url ? '<a href="' + esc(s.url) + '" target="_blank" rel="noopener">' + esc(s.name) + "</a>" : esc(s.name);
-  return "<li>" + name + (s.date ? "（" + esc(s.date) + "）" : "") + "</li>";
-}).join("");
-
-document.getElementById("gen-time").textContent = new Date().toLocaleString("zh-CN");
-
-/* ---------- Map ---------- */
-var map = L.map("map", { scrollWheelZoom: true }).setView([27.95, 85.0], 8);
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-  maxZoom: 17,
-  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> 贡献者'
-}).addTo(map);
-
-var layers = {};
-var allBounds = [];
-
-if (COP.corridor && COP.corridor.coords && COP.corridor.coords.length) {
-  var corr = L.polyline(COP.corridor.coords, {
-    color: "#dc2626", weight: 4, opacity: .75, dashArray: "10 8"
-  }).addTo(map).bindPopup("<b>" + esc(COP.corridor.name) + "</b><br>" + esc(COP.corridor.note || ""));
-  layers.__corridor = { layer: L.layerGroup([corr]).addTo(map), label: "风险廊道", color: "#dc2626" };
-  allBounds.push(corr.getBounds());
 }
 
-Object.keys(CATS).forEach(function (key) {
-  var group = L.layerGroup();
-  (COP.sites || []).forEach(function (s) {
-    if (s.category !== key) return;
-    var cat = CATS[key];
-    var m = L.circleMarker([s.lat, s.lon], {
-      radius: key === "incident" ? 12 : 8,
-      color: "#fff", weight: 2, fillColor: cat.color, fillOpacity: key === "incident" ? .55 : .9
-    }).addTo(group);
-    m.bindPopup(
-      '<div class="pop-name">' + esc(s.name) + "</div>" +
-      '<span class="pop-cat" style="background:' + cat.color + '">' + cat.label + "</span><br>" +
-      esc(s.description || "") +
-      (s.as_of ? '<br><span style="color:#6b7280;font-size:11px">信息截至 ' + esc(s.as_of) + "</span>" : "")
+function renderTimeline() {
+  document.getElementById("timeline").innerHTML = (COP.updates || []).map(function (u) {
+    return '<div class="tl-item"><span class="tl-time">' + esc(u.time) + "</span>" +
+      (L(u, "tag") ? '<span class="tl-tag">' + esc(L(u, "tag")) + "</span>" : "") +
+      '<div class="tl-text">' + esc(L(u, "text")) + "</div></div>";
+  }).join("");
+}
+
+function renderResources() {
+  var t = T();
+  document.getElementById("resources").innerHTML = (COP.resources || []).map(function (r) {
+    return '<div class="res-item"><span class="res-name">' + esc(L(r, "name")) + "</span>" +
+      (L(r, "type") ? '<span class="res-type">' + esc(L(r, "type")) + "</span>" : "") +
+      "<div class='res-detail'>" +
+      (L(r, "tasks") ? esc(t.tasks) + "：" + esc(L(r, "tasks")) + "；" : "") +
+      (L(r, "strength") ? esc(t.strength) + "：" + esc(L(r, "strength")) + "；" : "") +
+      (L(r, "base") ? esc(t.base) + "：" + esc(L(r, "base")) : "") + "</div></div>";
+  }).join("") || '<div style="padding:10px 16px;color:#6b7280">' + esc(t.noneRecorded) + "</div>";
+}
+
+function renderSources() {
+  document.getElementById("sources").innerHTML = (COP.sources || []).map(function (s) {
+    var name = s.url ? '<a href="' + esc(s.url) + '" target="_blank" rel="noopener">' + esc(L(s, "name")) + "</a>" : esc(L(s, "name"));
+    return "<li>" + name + (s.date ? "（" + esc(s.date) + "）" : "") + "</li>";
+  }).join("");
+}
+
+/* ================= map ================= */
+var map, layerRecords = {}, markerPopups = [];
+
+function catLabel(key) { return CAT_I18N[LANG][key] || key; }
+
+function buildMap() {
+  var t = T();
+  map = L.map("map", { scrollWheelZoom: true }).setView([27.95, 85.0], 8);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 17,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+  }).addTo(map);
+
+  layerRecords = {};
+  var allBounds = [];
+
+  if (COP.corridor && COP.corridor.coords && COP.corridor.coords.length) {
+    var corr = L.polyline(COP.corridor.coords, {
+      color: "#dc2626", weight: 4, opacity: .75, dashArray: "10 8"
+    }).addTo(map);
+    corr.bindPopup("<b>" + esc(L(COP.corridor, "name")) + "</b><br>" + esc(L(COP.corridor, "note") || ""));
+    layerRecords.__corridor = { layer: L.layerGroup([corr]).addTo(map), key: "__corridor", color: "#dc2626" };
+    allBounds.push(corr.getBounds());
+  }
+
+  Object.keys(CATS).forEach(function (key) {
+    var group = L.layerGroup();
+    (COP.sites || []).forEach(function (s) {
+      if (s.category !== key) return;
+      var m = L.circleMarker([s.lat, s.lon], {
+        radius: key === "incident" ? 12 : 8,
+        color: "#fff", weight: 2, fillColor: CATS[key].color, fillOpacity: key === "incident" ? .55 : .9
+      }).addTo(group);
+      markerPopups.push({ marker: m, site: s, cat: key });
+      allBounds.push(L.latLngBounds([s.lat, s.lon], [s.lat, s.lon]));
+    });
+    if (key === "incident") {
+      (COP.sites || []).filter(function (s) { return s.category === "incident"; }).forEach(function (s) {
+        L.circle([s.lat, s.lon], { radius: 8000, color: "#dc2626", weight: 1, fillOpacity: .08 }).addTo(group);
+      });
+    }
+    if (group.getLayers().length) {
+      group.addTo(map);
+      layerRecords[key] = { layer: group, key: key, color: CATS[key].color };
+    }
+  });
+
+  if (allBounds.length) { map.fitBounds(L.latLngBounds(allBounds).pad(0.25)); }
+  refreshPopups();
+  buildLegend();
+}
+
+function refreshPopups() {
+  markerPopups.forEach(function (p) {
+    var cat = CATS[p.cat];
+    p.marker.bindPopup(
+      '<div class="pop-name">' + esc(L(p.site, "name")) + "</div>" +
+      '<span class="pop-cat" style="background:' + cat.color + '">' + esc(catLabel(p.cat)) + "</span><br>" +
+      esc(L(p.site, "description") || "") +
+      (p.site.as_of ? '<br><span style="color:#6b7280;font-size:11px">' + esc(T().asOf) + " " + esc(p.site.as_of) + "</span>" : "")
     );
-    allBounds.push(L.latLngBounds([s.lat, s.lon], [s.lat, s.lon]));
   });
-  if (key === "incident") {
-    (COP.sites || []).filter(function (s) { return s.category === "incident"; }).forEach(function (s) {
-      L.circle([s.lat, s.lon], { radius: 8000, color: "#dc2626", weight: 1, fillOpacity: .08 }).addTo(group);
+}
+
+function buildLegend() {
+  var t = T();
+  var legend = L.control({ position: "bottomright" });
+  legend.onAdd = function () {
+    var div = L.DomUtil.create("div", "legend");
+    var html = "<b style='font-size:11px'>" + esc(t.legend) + "</b>";
+    Object.keys(layerRecords).forEach(function (key) {
+      var it = layerRecords[key];
+      var label = key === "__corridor" ? t.corridor : catLabel(key);
+      html += '<div class="row" data-key="' + key + '"><span class="dot" style="background:' + it.color + '"></span>' + esc(label) + "</div>";
     });
-  }
-  if (group.getLayers().length) {
-    group.addTo(map);
-    layers[key] = { layer: group, label: CATS[key].label, color: CATS[key].color };
-  }
-});
-
-if (allBounds.length) { map.fitBounds(L.latLngBounds(allBounds).pad(0.25)); }
-
-/* ---------- Legend & layer toggles ---------- */
-var legend = L.control({ position: "bottomright" });
-legend.onAdd = function () {
-  var div = L.DomUtil.create("div", "legend");
-  var html = "<b style='font-size:11px'>图层</b>";
-  Object.keys(layers).forEach(function (key) {
-    var it = layers[key];
-    html += '<div class="row" data-key="' + key + '"><span class="dot" style="background:' + it.color + '"></span>' + esc(it.label) + "</div>";
-  });
-  div.innerHTML = html;
-  L.DomEvent.disableClickPropagation(div);
-  return div;
-};
-legend.addTo(map);
-map.whenReady(function () {
-  document.querySelectorAll(".legend .row").forEach(function (row) {
-    row.addEventListener("click", function () {
-      var it = layers[row.dataset.key];
-      if (map.hasLayer(it.layer)) { map.removeLayer(it.layer); row.classList.add("off"); }
-      else { map.addLayer(it.layer); row.classList.remove("off"); }
+    div.innerHTML = html;
+    L.DomEvent.disableClickPropagation(div);
+    return div;
+  };
+  legend.addTo(map);
+  map.whenReady(function () {
+    document.querySelectorAll(".legend .row").forEach(function (row) {
+      row.addEventListener("click", function () {
+        var it = layerRecords[row.dataset.key];
+        if (map.hasLayer(it.layer)) { map.removeLayer(it.layer); row.classList.add("off"); }
+        else { map.addLayer(it.layer); row.classList.remove("off"); }
+      });
     });
   });
-});
+}
+
+/* ================= language toggle ================= */
+function toggleLang() {
+  LANG = LANG === "en" ? "zh" : "en";
+  localStorage.setItem("cop-lang", LANG);
+  renderChrome(); renderKpis(); renderChart(); renderTimeline(); renderResources(); renderSources();
+  refreshPopups();
+  /* rebuild legend labels in place */
+  var legendEl = document.querySelector(".legend");
+  if (legendEl) {
+    var t = T();
+    var html = "<b style='font-size:11px'>" + esc(t.legend) + "</b>";
+    Object.keys(layerRecords).forEach(function (key) {
+      var it = layerRecords[key];
+      var off = map.hasLayer(it.layer) ? "" : " off";
+      var label = key === "__corridor" ? t.corridor : catLabel(key);
+      html += '<div class="row' + off + '" data-key="' + key + '"><span class="dot" style="background:' + it.color + '"></span>' + esc(label) + "</div>";
+    });
+    legendEl.innerHTML = html;
+    legendEl.querySelectorAll(".row").forEach(function (row) {
+      row.addEventListener("click", function () {
+        var it = layerRecords[row.dataset.key];
+        if (map.hasLayer(it.layer)) { map.removeLayer(it.layer); row.classList.add("off"); }
+        else { map.addLayer(it.layer); row.classList.remove("off"); }
+      });
+    });
+  }
+}
+
+/* ================= init ================= */
+renderChrome();
+renderKpis();
+renderChart();
+renderTimeline();
+renderResources();
+renderSources();
+buildMap();
 </script>
 </body>
 </html>

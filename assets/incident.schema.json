@@ -1,47 +1,54 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://open-sar-cop.example/schema/incident.schema.json",
-  "title": "灾害事件 COP 数据模型",
-  "description": "Open SAR-COP 灾害事件数据契约。AI 依据本 schema 为每次灾害组装 incident.json，再由生成器渲染成 COP 仪表盘。",
+  "$id": "https://open-sar-cop.github.io/schema/incident.schema.json",
+  "title": "Incident COP Data Model",
+  "description": "Open SAR-COP incident data contract. An AI (or human) assembles one incident.json per disaster following this schema; the builder then renders it into a COP dashboard. Primary fields are in ENGLISH (default display language); every text field may carry a *_zh variant (e.g. title_zh, summary_zh) for Simplified Chinese. The dashboard falls back to the primary field when a *_zh field is absent.",
   "type": "object",
   "required": ["slug", "title", "event_type", "country", "onset", "status", "severity", "last_updated", "summary", "kpis", "sites", "updates", "sources"],
   "properties": {
     "slug": {
       "type": "string",
       "pattern": "^[a-z0-9][a-z0-9-]*$",
-      "description": "事件唯一标识，命名规范：<国家二字码>-<地区>-<灾害类型>-<年份>，如 np-rasuwa-landslide-2026"
+      "description": "Unique incident id, also the repo name: <country-code>-<region>-<hazard-type>-<year>, e.g. np-rasuwa-landslide-2026"
     },
-    "title": { "type": "string", "description": "事件全称（中文）" },
-    "event_type": { "type": "string", "description": "灾害类型：泥石流/山洪/地震/台风/洪涝/雪崩/滑坡等" },
-    "country": { "type": "string" },
-    "region": { "type": "string", "description": "受灾区域描述" },
-    "onset": { "type": "string", "description": "灾害发生时间 ISO 8601（尽量含时区）" },
-    "status": { "type": "string", "enum": ["active", "monitoring", "closed"], "description": "active=响应进行中；monitoring=持续监测；closed=已结束" },
+    "title": { "type": "string", "description": "Incident full name in English (primary). 中文标题：尼泊尔热索瓦特大泥石流灾害" },
+    "title_zh": { "type": "string", "description": "Optional Simplified Chinese title (中文标题)" },
+    "event_type": { "type": "string", "description": "Hazard type: landslide / debris flow / earthquake / typhoon / flood / avalanche / ..." },
+    "event_type_zh": { "type": "string", "description": "Optional Chinese hazard type (灾害类型，中文)" },
+    "country": { "type": "string", "description": "Country name in English" },
+    "region": { "type": "string", "description": "Affected region description (English)" },
+    "region_zh": { "type": "string", "description": "Optional Chinese region description" },
+    "onset": { "type": "string", "description": "Onset time, ISO 8601 with timezone where possible" },
+    "status": { "type": "string", "enum": ["active", "monitoring", "closed"], "description": "active=response ongoing; monitoring=monitoring residual risks; closed=closed" },
     "severity": { "type": "string", "enum": ["minor", "moderate", "severe", "extreme"] },
-    "last_updated": { "type": "string", "description": "本份数据最后更新时间 ISO 8601" },
-    "summary": { "type": "string", "description": "事件概况，2-4 句" },
+    "last_updated": { "type": "string", "description": "Last data update time, ISO 8601" },
+    "summary": { "type": "string", "description": "Incident overview, 2-4 sentences (English)" },
+    "summary_zh": { "type": "string", "description": "Optional Chinese overview (事件概述，中文)" },
     "kpis": {
       "type": "array",
-      "description": "顶部关键指标卡片",
+      "description": "Top KPI cards",
       "items": {
         "type": "object",
         "required": ["label", "value"],
         "properties": {
-          "label": { "type": "string", "description": "如：遇难人数 / 失联人数 / 受损桥梁" },
+          "label": { "type": "string", "description": "e.g. Confirmed deaths / Missing / Bridges damaged" },
+          "label_zh": { "type": "string", "description": "Optional Chinese label (如：遇难人数)" },
           "value": { "type": ["string", "number"] },
-          "unit": { "type": "string" },
-          "note": { "type": "string", "description": "时效与口径说明，如：截至8/27晚，警方口径" }
+          "unit": { "type": "string", "description": "Unit; use English (persons, km, bridges...)" },
+          "note": { "type": "string", "description": "Timeliness & attribution, e.g. as of Aug 27 evening, per Nepal Police" },
+          "note_zh": { "type": "string", "description": "Optional Chinese note (截至时间与口径)" }
         }
       }
     },
     "casualty_series": {
       "type": "array",
-      "description": "伤亡数字随时间变化（用于趋势图）",
+      "description": "Casualty figures over time (for the trend chart)",
       "items": {
         "type": "object",
         "required": ["label"],
         "properties": {
-          "label": { "type": "string", "description": "时间点，如 8/26 晚" },
+          "label": { "type": "string", "description": "Time point, e.g. Aug 26 evening" },
+          "label_zh": { "type": "string", "description": "Optional Chinese label (如：8/26 晚)" },
           "dead": { "type": ["integer", "null"] },
           "missing": { "type": ["integer", "null"] },
           "injured": { "type": ["integer", "null"] }
@@ -50,69 +57,81 @@
     },
     "sites": {
       "type": "array",
-      "description": "地图点位",
+      "description": "Map sites (approximate locations)",
       "items": {
         "type": "object",
         "required": ["name", "lat", "lon", "category"],
         "properties": {
-          "name": { "type": "string" },
+          "name": { "type": "string", "description": "Site name in English (romanized where applicable)" },
+          "name_zh": { "type": "string", "description": "Optional Chinese name" },
           "lat": { "type": "number" },
           "lon": { "type": "number" },
           "category": {
             "type": "string",
             "enum": ["incident", "damage", "community", "command", "resource", "risk"],
-            "description": "incident=灾害发生点 damage=设施损毁 community=受灾村镇 command=指挥协调 resource=救援力量 risk=风险区"
+            "description": "incident=hazard site; damage=damaged infrastructure; community=affected settlement; command=command/coordination; resource=response asset; risk=risk zone"
           },
-          "description": { "type": "string" },
-          "as_of": { "type": "string", "description": "信息截至时间" }
+          "description": { "type": "string", "description": "English description; MUST state 'approximate location' if geocoded" },
+          "description_zh": { "type": "string", "description": "Optional Chinese description" },
+          "as_of": { "type": "string", "description": "Information as-of date" }
         }
       }
     },
     "corridor": {
       "type": "object",
-      "description": "风险廊道/河流/道路等线要素（可选）",
+      "description": "Optional linear feature: risk corridor / river / road",
       "properties": {
         "name": { "type": "string" },
-        "note": { "type": "string" },
+        "name_zh": { "type": "string" },
+        "note": { "type": "string", "description": "English note; must state 'schematic trace, not exact'" },
+        "note_zh": { "type": "string" },
         "coords": { "type": "array", "items": { "type": "array", "items": { "type": "number" } } }
       }
     },
     "resources": {
       "type": "array",
-      "description": "响应力量",
+      "description": "Response forces",
       "items": {
         "type": "object",
         "required": ["name"],
         "properties": {
           "name": { "type": "string" },
-          "type": { "type": "string", "description": "军队/警察/消防/医疗/志愿者/跨国协调等" },
-          "strength": { "type": "string", "description": "投入规模描述" },
-          "tasks": { "type": "string", "description": "当前任务" },
-          "base": { "type": "string", "description": "集结地/基地" }
+          "name_zh": { "type": "string" },
+          "type": { "type": "string", "description": "military / police / fire / medical / volunteer / international coordination ..." },
+          "type_zh": { "type": "string" },
+          "strength": { "type": "string", "description": "Committed strength" },
+          "strength_zh": { "type": "string" },
+          "tasks": { "type": "string", "description": "Current tasks" },
+          "tasks_zh": { "type": "string" },
+          "base": { "type": "string", "description": "Staging base" },
+          "base_zh": { "type": "string" }
         }
       }
     },
     "updates": {
       "type": "array",
-      "description": "时间线（新事件在前）",
+      "description": "Timeline, newest first",
       "items": {
         "type": "object",
         "required": ["time", "text"],
         "properties": {
           "time": { "type": "string" },
-          "text": { "type": "string" },
-          "tag": { "type": "string", "description": "灾情/响应/预报/国际 等" }
+          "text": { "type": "string", "description": "English update text" },
+          "text_zh": { "type": "string", "description": "Optional Chinese update text" },
+          "tag": { "type": "string", "description": "impact / response / forecast / international ..." },
+          "tag_zh": { "type": "string", "description": "Optional Chinese tag (灾情/响应/预报/国际)" }
         }
       }
     },
     "sources": {
       "type": "array",
-      "description": "数据来源，必填且不可为空",
+      "description": "Data sources. REQUIRED, must not be empty.",
       "items": {
         "type": "object",
         "required": ["name", "date"],
         "properties": {
-          "name": { "type": "string" },
+          "name": { "type": "string", "description": "Source name in English (add original-language name in parentheses if useful)" },
+          "name_zh": { "type": "string", "description": "Optional Chinese source name" },
           "url": { "type": "string" },
           "date": { "type": "string" }
         }

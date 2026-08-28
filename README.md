@@ -1,39 +1,53 @@
-# skill-disaster-cop — 灾害 COP 自动生成 AI 技能
+# skill-disaster-cop — AI Skill for Auto-Generating Disaster COP Dashboards
 
-> 让 AI 助手在新灾害发生时，自动检索公开信息 → 组装标准数据 → 生成可交互的 COP 态势图。
-> [Open SAR-COP](https://github.com/open-sar-cop) 项目的 AI 执行入口 · [事件索引](https://github.com/open-sar-cop/incidents) · [项目主页](https://open-sar-cop.github.io)
+**English** | [简体中文](README.zh-CN.md)
 
-## 这是什么
+> Lets an AI assistant respond to a new disaster by automatically searching public information → assembling standardized data → generating an interactive COP (Common Operating Picture) dashboard.
+> AI execution entry point of the [Open SAR-COP](https://github.com/open-sar-cop) project · [Incident index](https://github.com/open-sar-cop/incidents) · [Homepage](https://open-sar-cop.github.io)
 
-一个自包含的 Agent Skill 包。任何支持加载 Skill 的 AI 助手（WorkBuddy、Claude Code 等）加载本目录后，即可响应这类请求：
+All outputs are **bilingual: English by default, Simplified Chinese alongside**.
 
-- "为这次尼泊尔泥石流做一个灾情态势图"
-- "帮我把这次地震的公开信息做成 COP dashboard"
+## What is this
+
+A self-contained Agent Skill package. Any AI assistant that supports loading skills (WorkBuddy, Claude Code, etc.) can load this directory and respond to requests like:
+
+- "Create a COP dashboard for this Nepal landslide"
+- "Turn the public information about this earthquake into a situation map"
 - "生成台风灾情看板"
 
-## 组成
+## Layout
 
 ```
 skill-disaster-cop/
-├── SKILL.md                      # 技能指令（工作流 + 硬性规则）
+├── SKILL.md                      # Skill instructions (workflow + hard rules, EN + 中文)
 ├── assets/
-│   ├── incident.schema.json      # 灾害事件数据契约
-│   ├── template.html             # COP 仪表盘模板
-│   └── build_cop.py              # 零依赖构建器（校验 + 渲染）
+│   ├── incident.schema.json      # Incident data contract (bilingual *_zh fields)
+│   ├── template.html             # COP dashboard template (EN default, 中文 toggle)
+│   └── build_cop.py              # Zero-dependency builder (validate + render)
 └── examples/
-    └── np-rasuwa-landslide-2026.json   # 完整样例数据
+    └── np-rasuwa-landslide-2026.json   # Full bilingual example
 ```
 
-## 手动使用（不经 AI）
+## Manual usage (without an AI)
 
 ```bash
 python3 assets/build_cop.py examples/np-rasuwa-landslide-2026.json \
   -t assets/template.html -o out/index.html
 ```
 
-## 硬性数据规则
+## Bilingual data convention
 
-见 SKILL.md "硬性规则"：来源强制、时效强制、近似坐标标注、零 PII、中国境内事件地图合规。这些规则不可移除。
+Primary fields in `incident.json` are English (the default display language); Simplified Chinese goes into optional `*_zh` fields:
+
+```json
+{ "title": "Nepal Rasuwa Catastrophic Landslide 2026", "title_zh": "尼泊尔热索瓦（Rasuwa）特大泥石流灾害" }
+```
+
+The dashboard renders English by default and switches to Chinese with one click (remembered in localStorage). If a `*_zh` field is missing, it falls back to the primary field.
+
+## Hard data rules
+
+See "Hard rules" in SKILL.md: mandatory sourcing, mandatory timeliness/attribution, approximate-location labeling, zero PII, and map compliance for events in China. These rules cannot be removed.
 
 ## License
 
