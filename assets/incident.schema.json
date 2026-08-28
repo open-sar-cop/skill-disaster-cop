@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://open-sar-cop.example/schema/incident.schema.json",
+  "title": "灾害事件 COP 数据模型",
+  "description": "Open SAR-COP 灾害事件数据契约。AI 依据本 schema 为每次灾害组装 incident.json，再由生成器渲染成 COP 仪表盘。",
+  "type": "object",
+  "required": ["slug", "title", "event_type", "country", "onset", "status", "severity", "last_updated", "summary", "kpis", "sites", "updates", "sources"],
+  "properties": {
+    "slug": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$",
+      "description": "事件唯一标识，命名规范：<国家二字码>-<地区>-<灾害类型>-<年份>，如 np-rasuwa-landslide-2026"
+    },
+    "title": { "type": "string", "description": "事件全称（中文）" },
+    "event_type": { "type": "string", "description": "灾害类型：泥石流/山洪/地震/台风/洪涝/雪崩/滑坡等" },
+    "country": { "type": "string" },
+    "region": { "type": "string", "description": "受灾区域描述" },
+    "onset": { "type": "string", "description": "灾害发生时间 ISO 8601（尽量含时区）" },
+    "status": { "type": "string", "enum": ["active", "monitoring", "closed"], "description": "active=响应进行中；monitoring=持续监测；closed=已结束" },
+    "severity": { "type": "string", "enum": ["minor", "moderate", "severe", "extreme"] },
+    "last_updated": { "type": "string", "description": "本份数据最后更新时间 ISO 8601" },
+    "summary": { "type": "string", "description": "事件概况，2-4 句" },
+    "kpis": {
+      "type": "array",
+      "description": "顶部关键指标卡片",
+      "items": {
+        "type": "object",
+        "required": ["label", "value"],
+        "properties": {
+          "label": { "type": "string", "description": "如：遇难人数 / 失联人数 / 受损桥梁" },
+          "value": { "type": ["string", "number"] },
+          "unit": { "type": "string" },
+          "note": { "type": "string", "description": "时效与口径说明，如：截至8/27晚，警方口径" }
+        }
+      }
+    },
+    "casualty_series": {
+      "type": "array",
+      "description": "伤亡数字随时间变化（用于趋势图）",
+      "items": {
+        "type": "object",
+        "required": ["label"],
+        "properties": {
+          "label": { "type": "string", "description": "时间点，如 8/26 晚" },
+          "dead": { "type": ["integer", "null"] },
+          "missing": { "type": ["integer", "null"] },
+          "injured": { "type": ["integer", "null"] }
+        }
+      }
+    },
+    "sites": {
+      "type": "array",
+      "description": "地图点位",
+      "items": {
+        "type": "object",
+        "required": ["name", "lat", "lon", "category"],
+        "properties": {
+          "name": { "type": "string" },
+          "lat": { "type": "number" },
+          "lon": { "type": "number" },
+          "category": {
+            "type": "string",
+            "enum": ["incident", "damage", "community", "command", "resource", "risk"],
+            "description": "incident=灾害发生点 damage=设施损毁 community=受灾村镇 command=指挥协调 resource=救援力量 risk=风险区"
+          },
+          "description": { "type": "string" },
+          "as_of": { "type": "string", "description": "信息截至时间" }
+        }
+      }
+    },
+    "corridor": {
+      "type": "object",
+      "description": "风险廊道/河流/道路等线要素（可选）",
+      "properties": {
+        "name": { "type": "string" },
+        "note": { "type": "string" },
+        "coords": { "type": "array", "items": { "type": "array", "items": { "type": "number" } } }
+      }
+    },
+    "resources": {
+      "type": "array",
+      "description": "响应力量",
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string" },
+          "type": { "type": "string", "description": "军队/警察/消防/医疗/志愿者/跨国协调等" },
+          "strength": { "type": "string", "description": "投入规模描述" },
+          "tasks": { "type": "string", "description": "当前任务" },
+          "base": { "type": "string", "description": "集结地/基地" }
+        }
+      }
+    },
+    "updates": {
+      "type": "array",
+      "description": "时间线（新事件在前）",
+      "items": {
+        "type": "object",
+        "required": ["time", "text"],
+        "properties": {
+          "time": { "type": "string" },
+          "text": { "type": "string" },
+          "tag": { "type": "string", "description": "灾情/响应/预报/国际 等" }
+        }
+      }
+    },
+    "sources": {
+      "type": "array",
+      "description": "数据来源，必填且不可为空",
+      "items": {
+        "type": "object",
+        "required": ["name", "date"],
+        "properties": {
+          "name": { "type": "string" },
+          "url": { "type": "string" },
+          "date": { "type": "string" }
+        }
+      }
+    }
+  }
+}

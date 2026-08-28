@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>__TITLE__</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  :root {
+    --bg: #f5f6f8; --panel: #ffffff; --ink: #1f2937; --ink2: #6b7280; --line: #e5e7eb;
+    --accent: #dc2626;
+    --c-incident: #dc2626; --c-damage: #ea580c; --c-community: #d97706;
+    --c-command: #4338ca; --c-resource: #0d9488; --c-risk: #7c3aed;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+    background: var(--bg); color: var(--ink); font-size: 14px; line-height: 1.65;
+  }
+  header { background: linear-gradient(135deg, #111827 0%, #1f2937 55%, #42200b 100%); color: #fff; padding: 18px 28px; }
+  .h-top { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .h-brand { font-size: 11px; letter-spacing: 2px; color: #fca5a5; border: 1px solid #7f1d1d; padding: 2px 10px; border-radius: 999px; background: rgba(220,38,38,.18); white-space: nowrap; }
+  h1 { font-size: 22px; font-weight: 700; letter-spacing: .5px; }
+  .h-status { display: flex; gap: 8px; }
+  .pill { font-size: 12px; padding: 2px 12px; border-radius: 999px; font-weight: 600; }
+  .pill.active { background: #dc2626; color: #fff; }
+  .pill.monitoring { background: #d97706; color: #fff; }
+  .pill.closed { background: #6b7280; color: #fff; }
+  .pill.extreme { background: rgba(127,29,29,.6); color: #fecaca; border: 1px solid #dc2626; }
+  .pill.severe { background: rgba(124,45,18,.6); color: #fed7aa; border: 1px solid #ea580c; }
+  .pill.mod { background: rgba(107,114,128,.4); color: #e5e7eb; border: 1px solid #9ca3af; }
+  .pill.minor { background: rgba(107,114,128,.4); color: #e5e7eb; border: 1px solid #9ca3af; }
+  .h-meta { margin-top: 8px; font-size: 12.5px; color: #d1d5db; display: flex; gap: 22px; flex-wrap: wrap; }
+  .h-meta b { color: #fff; font-weight: 600; }
+  .wrap { max-width: 1440px; margin: 0 auto; padding: 18px 22px 40px; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .kpi { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; border-top: 3px solid var(--accent); }
+  .kpi .v { font-size: 30px; font-weight: 800; color: var(--accent); line-height: 1.1; }
+  .kpi .v small { font-size: 13px; font-weight: 600; color: var(--ink2); margin-left: 2px; }
+  .kpi .l { font-size: 13px; font-weight: 600; margin-top: 4px; }
+  .kpi .n { font-size: 11.5px; color: var(--ink2); margin-top: 2px; }
+  .main { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(320px, 1fr); gap: 16px; }
+  @media (max-width: 980px) { .main { grid-template-columns: 1fr; } }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .card h2 { font-size: 14px; font-weight: 700; padding: 10px 16px; border-bottom: 1px solid var(--line); background: #fafafa; display: flex; align-items: center; gap: 8px; }
+  .card h2::before { content: ""; width: 4px; height: 14px; background: var(--accent); border-radius: 2px; display: inline-block; }
+  #map { height: 560px; width: 100%; }
+  .legend { position: absolute; right: 10px; bottom: 10px; z-index: 1000; background: rgba(255,255,255,.95); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; font-size: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+  .legend .row { display: flex; align-items: center; gap: 7px; padding: 1px 0; cursor: pointer; user-select: none; }
+  .legend .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .legend .row.off { opacity: .35; text-decoration: line-through; }
+  .side { display: flex; flex-direction: column; gap: 16px; }
+  .summary-body { padding: 12px 16px; font-size: 13.5px; color: #374151; }
+  .tl { padding: 10px 16px 14px; max-height: 320px; overflow-y: auto; }
+  .tl-item { position: relative; padding: 0 0 14px 18px; border-left: 2px solid var(--line); margin-left: 6px; }
+  .tl-item:last-child { padding-bottom: 0; }
+  .tl-item::before { content: ""; position: absolute; left: -6px; top: 5px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); border: 2px solid #fff; box-shadow: 0 0 0 1px var(--accent); }
+  .tl-time { font-size: 12px; font-weight: 700; color: var(--accent); }
+  .tl-tag { font-size: 10.5px; background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; border-radius: 4px; padding: 0 5px; margin-left: 6px; }
+  .tl-text { font-size: 13px; color: #374151; margin-top: 2px; }
+  .res-list { padding: 8px 16px 14px; }
+  .res-item { padding: 8px 0; border-bottom: 1px dashed var(--line); }
+  .res-item:last-child { border-bottom: none; }
+  .res-name { font-weight: 700; font-size: 13.5px; }
+  .res-type { font-size: 11px; color: #0f766e; background: #f0fdfa; border: 1px solid #ccfbf1; border-radius: 4px; padding: 0 6px; margin-left: 6px; }
+  .res-detail { font-size: 12.5px; color: var(--ink2); }
+  .src-list { padding: 10px 16px 14px; font-size: 12.5px; }
+  .src-list li { margin: 4px 0 4px 16px; }
+  .src-list a { color: #2563eb; text-decoration: none; word-break: break-all; }
+  .src-list a:hover { text-decoration: underline; }
+  .chart-body { padding: 12px 16px 6px; }
+  .chart-note { font-size: 11.5px; color: var(--ink2); padding: 0 16px 12px; }
+  footer { text-align: center; color: var(--ink2); font-size: 12px; padding: 18px 20px 30px; }
+  footer b { color: #b91c1c; }
+  .leaflet-popup-content { font-size: 12.5px; }
+  .pop-name { font-weight: 700; font-size: 13px; margin-bottom: 2px; }
+  .pop-cat { display: inline-block; font-size: 10.5px; color: #fff; border-radius: 4px; padding: 0 6px; margin-bottom: 4px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="h-top">
+    <span class="h-brand">OPEN SAR-COP · 灾害通用态势平台</span>
+    <h1 id="ev-title"></h1>
+    <span class="h-status" id="ev-status"></span>
+  </div>
+  <div class="h-meta" id="ev-meta"></div>
+</header>
+
+<div class="wrap">
+  <div class="kpis" id="kpis"></div>
+
+  <div class="main">
+    <div class="card">
+      <h2>态势地图 <span style="font-weight:400;color:#6b7280;font-size:12px;">（点位为近似定位，点击查看详情；点击图例可切换图层）</span></h2>
+      <div id="map"></div>
+    </div>
+
+    <div class="side">
+      <div class="card">
+        <h2>事件概况</h2>
+        <div class="summary-body" id="ev-summary"></div>
+      </div>
+
+      <div class="card" id="chart-card">
+        <h2>伤亡数字变化</h2>
+        <div class="chart-body" id="chart"></div>
+        <div class="chart-note">数据点仅收录有明确时间戳与口径的公开通报，缺失点不插值。</div>
+      </div>
+
+      <div class="card">
+        <h2>时间线</h2>
+        <div class="tl" id="timeline"></div>
+      </div>
+
+      <div class="card">
+        <h2>响应力量</h2>
+        <div class="res-list" id="resources"></div>
+      </div>
+
+      <div class="card">
+        <h2>数据来源</h2>
+        <ul class="src-list" id="sources"></ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <b>免责声明</b>：本 COP 由 <span id="gen-time"></span> 自动生成，数据整理自公开报道，仅供态势参考，不作为救援决策的唯一依据；不含任何个人身份信息（PII）。
+</footer>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const COP = __COP_DATA__;
+
+const CATS = {
+  incident:  { label: "灾害发生点",  color: "#dc2626" },
+  damage:    { label: "设施损毁",    color: "#ea580c" },
+  community: { label: "受灾村镇",    color: "#d97706" },
+  command:   { label: "指挥/协调",   color: "#4338ca" },
+  resource:  { label: "救援力量",    color: "#0d9488" },
+  risk:      { label: "风险区",      color: "#7c3aed" }
+};
+const STATUS = { active: "响应进行中", monitoring: "持续监测", closed: "已结束" };
+const SEV = { extreme: "极端", severe: "严重", moderate: "中等", minor: "较轻" };
+
+function esc(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+  });
+}
+
+/* ---------- Header ---------- */
+document.getElementById("ev-title").textContent = COP.title;
+document.getElementById("ev-status").innerHTML =
+  '<span class="pill ' + (COP.status === "monitoring" ? "monitoring" : COP.status === "closed" ? "closed" : "active") + '">' +
+  (STATUS[COP.status] || COP.status) + "</span>" +
+  '<span class="pill ' + (COP.severity || "mod") + '">灾害等级：' + (SEV[COP.severity] || COP.severity) + "</span>";
+document.getElementById("ev-meta").innerHTML =
+  "<span>类型 <b>" + esc(COP.event_type) + "</b></span>" +
+  "<span>发生时间 <b>" + esc(COP.onset) + "</b></span>" +
+  (COP.region ? "<span>区域 <b>" + esc(COP.region) + "</b></span>" : "") +
+  "<span>数据更新 <b>" + esc(COP.last_updated) + "</b></span>" +
+  "<span>事件编号 <b>" + esc(COP.slug) + "</b></span>";
+document.getElementById("ev-summary").textContent = COP.summary || "";
+
+/* ---------- KPIs ---------- */
+document.getElementById("kpis").innerHTML = (COP.kpis || []).map(function (k) {
+  return '<div class="kpi"><div class="v">' + esc(k.value) + (k.unit ? "<small>" + esc(k.unit) + "</small>" : "") +
+    '</div><div class="l">' + esc(k.label) + "</div>" +
+    (k.note ? '<div class="n">' + esc(k.note) + "</div>" : "") + "</div>";
+}).join("");
+
+/* ---------- Chart (hand-rolled SVG) ---------- */
+(function () {
+  var series = (COP.casualty_series || []).filter(function (p) { return p.dead != null || p.missing != null; });
+  var card = document.getElementById("chart-card");
+  if (!series.length) { card.style.display = "none"; return; }
+  var W = 340, H = 180, L = 40, R = 12, T = 14, B = 26;
+  var max = 0;
+  series.forEach(function (p) { max = Math.max(max, p.dead || 0, p.missing || 0); });
+  max = Math.ceil(max / 100) * 100 || 10;
+  function x(i) { return L + (series.length === 1 ? 0 : i * (W - L - R) / (series.length - 1)); }
+  function y(v) { return H - B - v * (H - T - B) / max; }
+  var svg = '<svg viewBox="0 0 ' + W + " " + H + '" style="width:100%;height:auto">';
+  for (var g = 0; g <= 4; g++) {
+    var gv = max * g / 4;
+    svg += '<line x1="' + L + '" y1="' + y(gv) + '" x2="' + (W - R) + '" y2="' + y(gv) + '" stroke="#e5e7eb" stroke-width="1"/>' +
+      '<text x="' + (L - 6) + '" y="' + (y(gv) + 4) + '" font-size="10" fill="#9ca3af" text-anchor="end">' + gv + "</text>";
+  }
+  function line(key, color) {
+    var pts = [], dots = "";
+    series.forEach(function (p, i) {
+      if (p[key] == null) return;
+      pts.push(x(i) + "," + y(p[key]));
+      dots += '<circle cx="' + x(i) + '" cy="' + y(p[key]) + '" r="3.5" fill="' + color + '">' +
+        "<title>" + esc(p.label) + "：" + p[key] + "人</title></circle>";
+    });
+    if (pts.length < 2) return dots;
+    return '<polyline points="' + pts.join(" ") + '" fill="none" stroke="' + color + '" stroke-width="2.2"/>' + dots;
+  }
+  svg += line("missing", "#d97706") + line("dead", "#dc2626");
+  series.forEach(function (p, i) {
+    svg += '<text x="' + x(i) + '" y="' + (H - 8) + '" font-size="10" fill="#6b7280" text-anchor="middle">' + esc(p.label) + "</text>";
+  });
+  svg += '<rect x="' + (W - 118) + '" y="2" width="12" height="3.5" fill="#dc2626"/><text x="' + (W - 100) + '" y="8" font-size="10.5" fill="#374151">遇难</text>' +
+    '<rect x="' + (W - 62) + '" y="2" width="12" height="3.5" fill="#d97706"/><text x="' + (W - 44) + '" y="8" font-size="10.5" fill="#374151">失联</text>';
+  svg += "</svg>";
+  document.getElementById("chart").innerHTML = svg;
+})();
+
+/* ---------- Timeline ---------- */
+document.getElementById("timeline").innerHTML = (COP.updates || []).map(function (u) {
+  return '<div class="tl-item"><span class="tl-time">' + esc(u.time) + "</span>" +
+    (u.tag ? '<span class="tl-tag">' + esc(u.tag) + "</span>" : "") +
+    '<div class="tl-text">' + esc(u.text) + "</div></div>";
+}).join("");
+
+/* ---------- Resources ---------- */
+document.getElementById("resources").innerHTML = (COP.resources || []).map(function (r) {
+  return '<div class="res-item"><span class="res-name">' + esc(r.name) + "</span>" +
+    (r.type ? '<span class="res-type">' + esc(r.type) + "</span>" : "") +
+    "<div class='res-detail'>" +
+    (r.tasks ? "任务：" + esc(r.tasks) + "；" : "") +
+    (r.strength ? "规模：" + esc(r.strength) + "；" : "") +
+    (r.base ? "基地：" + esc(r.base) : "") + "</div></div>";
+}).join("") || "<div style='padding:10px 16px;color:#6b7280'>暂无记录</div>";
+
+/* ---------- Sources ---------- */
+document.getElementById("sources").innerHTML = (COP.sources || []).map(function (s) {
+  var name = s.url ? '<a href="' + esc(s.url) + '" target="_blank" rel="noopener">' + esc(s.name) + "</a>" : esc(s.name);
+  return "<li>" + name + (s.date ? "（" + esc(s.date) + "）" : "") + "</li>";
+}).join("");
+
+document.getElementById("gen-time").textContent = new Date().toLocaleString("zh-CN");
+
+/* ---------- Map ---------- */
+var map = L.map("map", { scrollWheelZoom: true }).setView([27.95, 85.0], 8);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  maxZoom: 17,
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> 贡献者'
+}).addTo(map);
+
+var layers = {};
+var allBounds = [];
+
+if (COP.corridor && COP.corridor.coords && COP.corridor.coords.length) {
+  var corr = L.polyline(COP.corridor.coords, {
+    color: "#dc2626", weight: 4, opacity: .75, dashArray: "10 8"
+  }).addTo(map).bindPopup("<b>" + esc(COP.corridor.name) + "</b><br>" + esc(COP.corridor.note || ""));
+  layers.__corridor = { layer: L.layerGroup([corr]).addTo(map), label: "风险廊道", color: "#dc2626" };
+  allBounds.push(corr.getBounds());
+}
+
+Object.keys(CATS).forEach(function (key) {
+  var group = L.layerGroup();
+  (COP.sites || []).forEach(function (s) {
+    if (s.category !== key) return;
+    var cat = CATS[key];
+    var m = L.circleMarker([s.lat, s.lon], {
+      radius: key === "incident" ? 12 : 8,
+      color: "#fff", weight: 2, fillColor: cat.color, fillOpacity: key === "incident" ? .55 : .9
+    }).addTo(group);
+    m.bindPopup(
+      '<div class="pop-name">' + esc(s.name) + "</div>" +
+      '<span class="pop-cat" style="background:' + cat.color + '">' + cat.label + "</span><br>" +
+      esc(s.description || "") +
+      (s.as_of ? '<br><span style="color:#6b7280;font-size:11px">信息截至 ' + esc(s.as_of) + "</span>" : "")
+    );
+    allBounds.push(L.latLngBounds([s.lat, s.lon], [s.lat, s.lon]));
+  });
+  if (key === "incident") {
+    (COP.sites || []).filter(function (s) { return s.category === "incident"; }).forEach(function (s) {
+      L.circle([s.lat, s.lon], { radius: 8000, color: "#dc2626", weight: 1, fillOpacity: .08 }).addTo(group);
+    });
+  }
+  if (group.getLayers().length) {
+    group.addTo(map);
+    layers[key] = { layer: group, label: CATS[key].label, color: CATS[key].color };
+  }
+});
+
+if (allBounds.length) { map.fitBounds(L.latLngBounds(allBounds).pad(0.25)); }
+
+/* ---------- Legend & layer toggles ---------- */
+var legend = L.control({ position: "bottomright" });
+legend.onAdd = function () {
+  var div = L.DomUtil.create("div", "legend");
+  var html = "<b style='font-size:11px'>图层</b>";
+  Object.keys(layers).forEach(function (key) {
+    var it = layers[key];
+    html += '<div class="row" data-key="' + key + '"><span class="dot" style="background:' + it.color + '"></span>' + esc(it.label) + "</div>";
+  });
+  div.innerHTML = html;
+  L.DomEvent.disableClickPropagation(div);
+  return div;
+};
+legend.addTo(map);
+map.whenReady(function () {
+  document.querySelectorAll(".legend .row").forEach(function (row) {
+    row.addEventListener("click", function () {
+      var it = layers[row.dataset.key];
+      if (map.hasLayer(it.layer)) { map.removeLayer(it.layer); row.classList.add("off"); }
+      else { map.addLayer(it.layer); row.classList.remove("off"); }
+    });
+  });
+});
+</script>
+</body>
+</html>
